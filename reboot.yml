@@ -1,0 +1,13 @@
+---
+- name: Reboot cluster
+  hosts: all
+  tasks:
+  - name: Rebooting servers
+    command: "shutdown -r +1"
+    async: 1
+    poll: 0
+    ignore_errors: true
+
+  - name: Wait for reboot to complete
+    wait_for_connection:
+      delay: 90

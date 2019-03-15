@@ -1,0 +1,9 @@
+---
+- name: Shut down cluster
+  hosts: all
+  tasks:
+  - name: Shutting down servers
+    command: "shutdown -hP +1"
+    async: 1
+    poll: 0
+    ignore_errors: true

@@ -1,14 +1,14 @@
-- hosts: all
-  roles:
-    - common
-    
-- hosts: nodes
-  roles:
-    - node
-
-# - hosts: master
+# - hosts: all
 #   roles:
-#     - master
+#     - common
+    
+# - hosts: nodes
+#   roles:
+#     - node
+
+- hosts: masters
+  roles:
+    - master
 
 # - hosts: nodes:!master
 #   roles:

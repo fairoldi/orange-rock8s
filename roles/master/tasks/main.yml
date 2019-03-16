@@ -1,8 +1,22 @@
 ---
-- name: swapoff
-  shell: swapoff -a
+- name: modprobe dummy
+  modprobe:
+    name: dummy 
+    state: present 
+    params:  numdummies=1
 
-# tasks file for master
+- name: add vip on the first master
+  template:
+    src: dummy.j2
+    dest: /etc/network
+  when: inventory_hostname == groups['masters'][0]
+
+- name: restart networking 
+  systemd:
+    name: networking
+    state: restarted
+  when: inventory_hostname == groups['masters'][0]
+
 - name: Reset Kubernetes Master
   shell: kubeadm reset -f
   register: kubeadm_reset
@@ -12,44 +26,128 @@
     src: kubeadm-config.yaml.j2
     dest: /root/kubeadm-config.yaml
 
-- name: "Initialize Master {{ kubernetes_version }}"
-  shell: kubeadm init --ignore-preflight-errors=all --config=/root/kubeadm-config.yaml
+- name: Create Kubernetes config directory
+  file:
+    path: /root/.kube/
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Initialize first master 
+  shell: kubeadm init --config=/root/kubeadm-config.yaml --ignore-preflight-errors=swap 
   when: kubeadm_reset is succeeded and inventory_hostname == groups['masters'][0]
-  register: join_cmd
+  register: kubeadm_init
 
 - debug:
-    var=join_cmd
-# - name: Create Kubernetes config directory
-#   file:
-#     path: /root/.kube/
-#     state: directory
-#     owner: root
-#     group: root
-#     mode: 0755
+    var=hostvars[groups['masters'][0]].kubeadm_init.stdout_lines[-1]
+  when: kubeadm_init is succeeded and inventory_hostname == groups['masters'][0]
 
-# - name: Copy admin.conf to config directory
-#   copy:
-#     src: /etc/kubernetes/admin.conf
-#     dest: /root/.kube/config
-#     owner: root
-#     group: root
-#     mode: 0755
-#     remote_src: yes
-#     backup: yes
-#   when: kubeadm_init
+- name: Copy admin.conf to config directory
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /root/.kube/config
+    owner: root
+    group: root
+    mode: 0755
+    backup: yes
+    remote_src: yes
+  when: kubeadm_init is succeeded and inventory_hostname == groups['masters'][0]
 
-# - name: Join Kubernetes Cluster
-#   shell: kubeadm join --ignore-preflight-errors=all --token {{ token }} {{ groups['master'][0] }}:6443 --discovery-token-unsafe-skip-ca-verification
-#   when: kubeadm_reset is succeeded
-#   register: kubeadm_join
+- name: Apply weave CNI
+  shell: kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')"
+  when: kubeadm_init is succeeded and inventory_hostname == groups['masters'][0]
 
-# - name: Install Flannel (Networking)
-#   shell: "kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/{{ flannel_version }}/Documentation/kube-flannel.yml" 
+- name: fetching kube config file and certs
+  fetch:
+    src: "{{ item }}"
+    dest: ./roles/master/files/
+  with_items:
+    - /etc/kubernetes/pki/ca.crt 
+    - /etc/kubernetes/pki/ca.key 
+    - /etc/kubernetes/pki/sa.key 
+    - /etc/kubernetes/pki/sa.pub 
+    - /etc/kubernetes/pki/front-proxy-ca.crt 
+    - /etc/kubernetes/pki/front-proxy-ca.key 
+    - /etc/kubernetes/pki/etcd/ca.crt 
+    - /etc/kubernetes/pki/etcd/ca.key
+    - /etc/kubernetes/admin.conf 
+  when: kubeadm_init is succeeded and inventory_hostname == groups['masters'][0]
 
-# - name: Poke kubelet
-#   systemd:
-#     name: kubelet
-#     state: restarted
-#     daemon_reload: yes
-#     enabled: yes
-#   register: kubelet_poke
+- name: preparing dirs on other master nodes
+  file: 
+    path: "/etc/kubernetes/pki/etcd"
+    state: directory
+  when: kubeadm_init is succeeded and inventory_hostname != groups['masters'][0]
+
+- name: distributing certs to other master nodes
+  copy:
+    src: "{{ groups['masters'][0] + item }}"
+    dest: "{{ item }}"
+    remote_src: no
+  with_items:
+    - /etc/kubernetes/pki/ca.crt 
+    - /etc/kubernetes/pki/ca.key 
+    - /etc/kubernetes/pki/sa.key 
+    - /etc/kubernetes/pki/sa.pub 
+    - /etc/kubernetes/pki/front-proxy-ca.crt 
+    - /etc/kubernetes/pki/front-proxy-ca.key 
+    - /etc/kubernetes/pki/etcd/ca.crt 
+    - /etc/kubernetes/pki/etcd/ca.key
+    - /etc/kubernetes/admin.conf  
+  when: kubeadm_init is succeeded and inventory_hostname != groups['masters'][0]
+
+- name: Copy admin.conf to config directory
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /root/.kube/config
+    owner: root
+    group: root
+    mode: 0755
+    backup: yes
+    remote_src: yes
+  when: kubeadm_init is succeeded and inventory_hostname != groups['masters'][0]
+
+- name: Wait for master to be ready
+  shell: "kubectl get nodes {{ inventory_hostname }} | awk 'END{print $2}'"
+  register: node_ready
+  until:      
+    - "'Ready'  in node_ready.stdout"     
+  retries: 30
+  delay: 10
+  when: kubeadm_init is succeeded and inventory_hostname == groups['masters'][0]
+
+- name: Joining remaining masters
+  shell: "{{ hostvars[groups['masters'][0]].kubeadm_init.stdout_lines[-1] }} --ignore-preflight-errors=swap --experimental-control-plane "
+  when: kubeadm_init is succeeded and inventory_hostname != groups['masters'][0]
+  register: kubeadm_join
+
+- name: Wait for masters to be ready
+  shell: "kubectl get nodes {{ inventory_hostname }} | awk 'END{print $2}'"
+  register: node_ready
+  until:      
+    - "'Ready'  in node_ready.stdout"     
+  retries: 30
+  delay: 10
+  when: kubeadm_join is succeeded and inventory_hostname != groups['masters'][0]
+
+- name: add vip on remaining masters
+  template:
+    src: dummy.j2
+    dest: /etc/network
+  when: kubeadm_join is succeeded and inventory_hostname != groups['masters'][0] 
+
+- name: restart networking 
+  systemd:
+    name: networking
+    state: restarted
+  when: kubeadm_join is succedeed and inventory_hostname != groups['masters'][0]
+
+- name: Poke kubelet
+  systemd:
+    name: kubelet
+    state: restarted
+    daemon_reload: yes
+    enabled: yes
+  register: kubelet_poke
+

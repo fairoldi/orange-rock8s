@@ -25,11 +25,13 @@ virtual_server {{ lb_vip }} 6443 {
     lvs_method DR
     protocol TCP
 
-{% for host in groups['masters'] %}
+    {% for host in groups['masters'] %}
     real_server {{ hostvars[host].ansible_host }} 6443 {
         weight 33
         TCP_CHECK {
             connect_timeout 5
         }
     }
-{% endfor %}
+    {% endfor %}
+
+}

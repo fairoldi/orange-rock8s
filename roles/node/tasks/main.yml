@@ -10,43 +10,52 @@
     value: 1
     state: present
 
-- name: Install apt-transport-https
-  apt:
-    name: apt-transport-https
-    state: latest
-
 - name: Add Google Cloud Repo Key
-  shell: curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
-  args:
-    warn: no
+  apt_key: 
+    url: https://packages.cloud.google.com/apt/doc/apt-key.gpg 
+    state: present
 
-- name: Add Kubernetes to Available apt Sources
-  template:
-    src: kubernetes.list
-    dest: /etc/apt/sources.list.d/kubernetes.list
-    owner: root
-    group: root
-    mode: 0644
+- name: Add docker apt key
+  apt_key:
+    url: https://download.docker.com/linux/{{ ansible_lsb.id|lower }}/gpg
+    state: present
 
-- name: apt-get update
+- name: Add docker repository
+  apt_repository:
+    repo: deb https://download.docker.com/linux/{{ ansible_lsb.id|lower }} {{ ansible_lsb.codename|lower }} stable
+    state: present
+
+- name: Add Kubernetes repository
+  apt_repository:
+    repo: deb http://apt.kubernetes.io/ kubernetes-xenial main
+    state: present
+
+- name: Remove distro docker if present
   apt:
+    name: docker.io
+    state: absent
     update_cache: yes
     autoclean: yes
     autoremove: yes
 
-# TODO: install correct version
-# - name: apt install docker
-#   apt:
-#     name: docker.io
-#     state: present
+- name: Install docker {{ docker_version }}
+  apt:
+    name: 
+    - apt-transport-https
+    - ca-certificates
+    - curl
+    - gnupg2 
+    - software-properties-common
+    - docker-ce={{ docker_version }}
+    state: present
 
-# - name: enable docker service
-#   systemd:
-#     name: docker
-#     state: started
-#     enabled: yes
+- name: Enable docker service
+  systemd:
+    name: docker
+    state: restarted
+    enabled: true
 
-- name: Install k8s {{ kubernetes_package_version }} Y'all
+- name: Install k8s {{ kubernetes_package_version }}
   apt:
     name: ["kubelet", "kubeadm", "kubectl"]
     state: present

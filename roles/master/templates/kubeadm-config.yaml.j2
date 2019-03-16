@@ -1,0 +1,9 @@
+apiVersion: kubeadm.k8s.io/v1beta1
+kind: ClusterConfiguration
+kubernetesVersion: "{{ kubernetes_version }}"
+apiServer:
+  certSANs:
+  - "{{ master_hostname }}"
+  extraArgs:
+    advertise-address: "{{ lb_vip }}"
+controlPlaneEndpoint: "{{ master_hostname }}:6443"

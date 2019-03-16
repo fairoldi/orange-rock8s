@@ -1,12 +1,15 @@
 ---
-# tasks file for kubeadm
+- name: Add the br_netfilter module
+  modprobe:
+    name: br_netfilter
+    state: present
+
 - name: Pass bridged IPv4 traffic to iptables' chains
   sysctl:
     name: net.bridge.bridge-nf-call-iptables
     value: 1
     state: present
 
-# https://kubernetes.io/docs/setup/independent/install-kubeadm/
 - name: Install apt-transport-https
   apt:
     name: apt-transport-https
@@ -31,15 +34,23 @@
     autoclean: yes
     autoremove: yes
 
+# TODO: install correct version
+# - name: apt install docker
+#   apt:
+#     name: docker.io
+#     state: present
+
+# - name: enable docker service
+#   systemd:
+#     name: docker
+#     state: started
+#     enabled: yes
+
 - name: Install k8s {{ kubernetes_package_version }} Y'all
   apt:
-    name: "{{ item }}={{ kubernetes_package_version }}"
+    name: ["kubelet", "kubeadm", "kubectl"]
     state: present
     force: yes
-  with_items:
-    - kubelet
-    - kubeadm
-    - kubectl
   register: k8s_installed
 
 - name: hold k8s packages

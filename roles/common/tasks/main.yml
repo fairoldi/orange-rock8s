@@ -27,6 +27,12 @@
   apt:
     upgrade: full
 
+- name: set master hostname in /etc/hosts
+  lineinfile:
+    path: /etc/hosts
+    state: present
+    line: "{{ lb_vip }} {{ master_hostname }}"
+
 - name: Reboot Message
   debug:
     msg: "A reboot is required but the reboot module is a little wonky. Hopefully someone fixes this soon."

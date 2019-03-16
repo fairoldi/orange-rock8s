@@ -1,3 +1,9 @@
+lb_vip: "192.168.3.128"
+lb_master: opir1-01
+lb_backup: opir1-02
+
+master_hostname: k8s-master
+
 token: udy29x.ugyyk3tumg27atmr
 podnet: 10.244.0.0/16
 

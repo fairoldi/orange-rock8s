@@ -6,11 +6,10 @@
   roles:
     - node
 
-- hosts: master
-  roles:
-    - master
-#    - dashboard
+# - hosts: master
+#   roles:
+#     - master
 
-- hosts: all:!master
-  roles:
-    - workers
+# - hosts: nodes:!master
+#   roles:
+#     - workers

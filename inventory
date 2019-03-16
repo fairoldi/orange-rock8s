@@ -1,16 +1,16 @@
 [masters]
-rock64-01
-rock64-02
-rock64-03
+rock64-01   ansible_host=192.168.3.51
+rock64-02   ansible_host=192.168.3.52
+rock64-03   ansible_host=192.168.3.53
 
 [workers]
-opip2e-01
-opip2e-02
-opip2e-03
+opip2e-01   ansible_host=192.168.3.48
+opip2e-02   ansible_host=192.168.3.49
+opip2e-03   ansible_host=192.168.3.50
 
 [lbs]
-opir1-01
-opir1-02
+opir1-01   ansible_host=192.168.3.54
+opir1-02   ansible_host=192.168.3.55
 
 [nodes]
 rock64-01

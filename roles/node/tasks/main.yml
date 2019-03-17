@@ -1,44 +1,43 @@
 ---
-- name: Add the br_netfilter module
+- name: add the br_netfilter module
   modprobe:
     name: br_netfilter
     state: present
 
-- name: Pass bridged IPv4 traffic to iptables' chains
+- name: pass bridged IPv4 traffic to iptables' chains
   sysctl:
     name: net.bridge.bridge-nf-call-iptables
     value: 1
     state: present
 
-- name: Add Google Cloud Repo Key
+- name: add apt keys
   apt_key: 
-    url: https://packages.cloud.google.com/apt/doc/apt-key.gpg 
+    url: "{{ item }}"
     state: present
+  with_items:
+  - https://packages.cloud.google.com/apt/doc/apt-key.gpg 
+  - https://download.docker.com/linux/{{ ansible_lsb.id|lower }}/gpg
 
-- name: Add docker apt key
-  apt_key:
-    url: https://download.docker.com/linux/{{ ansible_lsb.id|lower }}/gpg
-    state: present
 
-- name: Add docker repository
+- name: add docker repository
   apt_repository:
-    repo: deb https://download.docker.com/linux/{{ ansible_lsb.id|lower }} {{ ansible_lsb.codename|lower }} stable
+    repo: "{{ item }}"
     state: present
-
-- name: Add Kubernetes repository
-  apt_repository:
-    repo: deb http://apt.kubernetes.io/ kubernetes-xenial main
-    state: present
-
-- name: Remove distro docker if present
+  with_items:
+  - deb https://download.docker.com/linux/{{ ansible_lsb.id|lower }} {{ ansible_lsb.codename|lower }} stable
+  - deb http://apt.kubernetes.io/ kubernetes-xenial main
+  
+- name: remove distro docker if present
   apt:
-    name: ["docker.io", "containerd.io"]
+    name: 
+    - docker.io 
+    - containerd.io
     state: absent
     update_cache: yes
     autoclean: yes
     autoremove: yes
 
-- name: Install docker {{ docker_version }}
+- name: install docker {{ docker_version }}
   apt:
     name: 
     - apt-transport-https
@@ -49,15 +48,18 @@
     - docker-ce={{ docker_version }}
     state: present
 
-- name: Enable docker service
+- name: enable docker service
   systemd:
     name: docker
     state: restarted
     enabled: true
 
-- name: Install k8s {{ kubernetes_package_version }}
+- name: install k8s {{ kubernetes_package_version }}
   apt:
-    name: ["kubelet", "kubeadm", "kubectl"]
+    name: 
+    - kubelet
+    - kubeadm
+    - kubectl
     state: present
     force: yes
   register: k8s_installed

@@ -387,6 +387,8 @@ spec:
         app: rook-ceph-operator
     spec:
       serviceAccountName: rook-ceph-system
+      nodeSelector:
+        beta.kubernetes.io/arch: arm64
       containers:
       - name: rook-ceph-operator
         image: rook/ceph:v0.9.3

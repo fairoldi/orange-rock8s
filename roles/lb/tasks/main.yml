@@ -1,24 +1,21 @@
-- name: define traditional ethernet facts
+- name: retrieve active ethernet interfaces
   set_fact:
     ansible_eth: "{% set ansible_eth = ansible_eth|default([]) + [ item ] %}{{ ansible_eth|list }}"
   when: hostvars[inventory_hostname]['ansible_' + item]['type'] == 'ether' and hostvars[inventory_hostname]['ansible_' + item]['active'] == true
   with_items:
     - "{{ hostvars[inventory_hostname]['ansible_interfaces'] }}"
 
-- name: Enable ip4 forward
+- name: enable ip4 forward
   sysctl:
     name: net.ipv4.ip_forward
     value: 1
     state: present
 
-- name: apt-get install ipvsadm
+- name: installing packages
   apt:
-    name: ipvsadm
-    state: present
-
-- name: apt-get install keepalived
-  apt:
-    name: keepalived
+    name:
+    - ipvsadm 
+    - keepalived
     state: present
 
 - name: render keepalived.conf template

@@ -1,7 +1,7 @@
-- name: Reset Kubernetes
+- name: reset Kubernetes
   shell: kubeadm reset -f
   register: kubeadm_reset
 
-- name: Joining worker nodes
+- name: join worker nodes
   shell: "{{ hostvars[groups['masters'][0]].kubeadm_init.stdout_lines[-1] }} --ignore-preflight-errors=swap "
   register: kubeadm_join

@@ -5,10 +5,22 @@
     state: present 
     params:  numdummies=1
 
+- name: ensure dummy module is loaded at boot
+  lineinfile:
+    path: /etc/modules-load.d/dummy.conf
+    line: dummy
+    backup: no
+
+- name: set options for dummy module
+  lineinfile:
+    path: /etc/modprobe.d/dummy.conf
+    line: options dummy numdummies=1
+    backup: no
+
 - name: add vip on the first master
   template:
     src: dummy.j2
-    dest: /etc/network
+    dest: /etc/network/interfaces.d/dummy0
   when: inventory_hostname == groups['masters'][0]
 
 - name: restart networking 
@@ -17,16 +29,16 @@
     state: restarted
   when: inventory_hostname == groups['masters'][0]
 
-- name: Reset Kubernetes Master
+- name: reset Kubernetes Master
   shell: kubeadm reset -f
   register: kubeadm_reset
 
-- name: Render kubeadm-config.yaml
+- name: render kubeadm-config.yaml
   template:
     src: kubeadm-config.yaml.j2
     dest: /root/kubeadm-config.yaml
 
-- name: Create Kubernetes config directory
+- name: create Kubernetes config directory
   file:
     path: /root/.kube/
     state: directory
@@ -34,16 +46,17 @@
     group: root
     mode: 0755
 
-- name: Initialize first master 
+- name: initialize first master 
   shell: kubeadm init --config=/root/kubeadm-config.yaml --ignore-preflight-errors=swap 
   when: kubeadm_reset is succeeded and inventory_hostname == groups['masters'][0]
   register: kubeadm_init
 
-- debug:
+- name: join command
+  debug:
     var=hostvars[groups['masters'][0]].kubeadm_init.stdout_lines[-1]
   when: kubeadm_init is succeeded and inventory_hostname == groups['masters'][0]
 
-- name: Copy admin.conf to config directory
+- name: copy admin.conf to config directory
   copy:
     src: /etc/kubernetes/admin.conf
     dest: /root/.kube/config
@@ -54,50 +67,50 @@
     remote_src: yes
   when: kubeadm_init is succeeded and inventory_hostname == groups['masters'][0]
 
-- name: Apply weave CNI
+- name: apply weave CNI
   shell: kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')"
   when: kubeadm_init is succeeded and inventory_hostname == groups['masters'][0]
 
-- name: fetching kube config file and certs
+- name: fetch kube config file and certs
   fetch:
     src: "{{ item }}"
     dest: ./roles/master/files/
   with_items:
-    - /etc/kubernetes/pki/ca.crt 
-    - /etc/kubernetes/pki/ca.key 
-    - /etc/kubernetes/pki/sa.key 
-    - /etc/kubernetes/pki/sa.pub 
-    - /etc/kubernetes/pki/front-proxy-ca.crt 
-    - /etc/kubernetes/pki/front-proxy-ca.key 
-    - /etc/kubernetes/pki/etcd/ca.crt 
-    - /etc/kubernetes/pki/etcd/ca.key
-    - /etc/kubernetes/admin.conf 
+  - /etc/kubernetes/pki/ca.crt 
+  - /etc/kubernetes/pki/ca.key 
+  - /etc/kubernetes/pki/sa.key 
+  - /etc/kubernetes/pki/sa.pub 
+  - /etc/kubernetes/pki/front-proxy-ca.crt 
+  - /etc/kubernetes/pki/front-proxy-ca.key 
+  - /etc/kubernetes/pki/etcd/ca.crt 
+  - /etc/kubernetes/pki/etcd/ca.key
+  - /etc/kubernetes/admin.conf 
   when: kubeadm_init is succeeded and inventory_hostname == groups['masters'][0]
 
-- name: preparing dirs on other master nodes
+- name: prepare dirs on other master nodes
   file: 
     path: "/etc/kubernetes/pki/etcd"
     state: directory
   when: kubeadm_init is succeeded and inventory_hostname != groups['masters'][0]
 
-- name: distributing certs to other master nodes
+- name: distribute certs to other master nodes
   copy:
     src: "{{ groups['masters'][0] + item }}"
     dest: "{{ item }}"
     remote_src: no
   with_items:
-    - /etc/kubernetes/pki/ca.crt 
-    - /etc/kubernetes/pki/ca.key 
-    - /etc/kubernetes/pki/sa.key 
-    - /etc/kubernetes/pki/sa.pub 
-    - /etc/kubernetes/pki/front-proxy-ca.crt 
-    - /etc/kubernetes/pki/front-proxy-ca.key 
-    - /etc/kubernetes/pki/etcd/ca.crt 
-    - /etc/kubernetes/pki/etcd/ca.key
-    - /etc/kubernetes/admin.conf  
+  - /etc/kubernetes/pki/ca.crt 
+  - /etc/kubernetes/pki/ca.key 
+  - /etc/kubernetes/pki/sa.key 
+  - /etc/kubernetes/pki/sa.pub 
+  - /etc/kubernetes/pki/front-proxy-ca.crt 
+  - /etc/kubernetes/pki/front-proxy-ca.key 
+  - /etc/kubernetes/pki/etcd/ca.crt 
+  - /etc/kubernetes/pki/etcd/ca.key
+  - /etc/kubernetes/admin.conf  
   when: kubeadm_init is succeeded and inventory_hostname != groups['masters'][0]
 
-- name: Copy admin.conf to config directory
+- name: copy admin.conf to config directory
   copy:
     src: /etc/kubernetes/admin.conf
     dest: /root/.kube/config
@@ -108,7 +121,7 @@
     remote_src: yes
   when: kubeadm_init is succeeded and inventory_hostname != groups['masters'][0]
 
-- name: Wait for master to be ready
+- name: wait for master to be ready
   shell: "kubectl get nodes {{ inventory_hostname }} | awk 'END{print $2}'"
   register: node_ready
   until:      
@@ -117,7 +130,7 @@
   delay: 10
   when: kubeadm_init is succeeded and inventory_hostname == groups['masters'][0]
 
-- name: Joining remaining masters
+- name: join remaining masters
   shell: "{{ hostvars[groups['masters'][0]].kubeadm_init.stdout_lines[-1] }} --ignore-preflight-errors=swap --experimental-control-plane "
   when: kubeadm_init is succeeded and inventory_hostname != groups['masters'][0]
   register: kubeadm_join
@@ -125,7 +138,7 @@
 - name: add vip on remaining masters
   template:
     src: dummy.j2
-    dest: /etc/network
+    dest: /etc/network/interfaces.d/dummy0
   when: kubeadm_join is succeeded and inventory_hostname != groups['masters'][0] 
 
 - name: restart networking 
@@ -134,7 +147,7 @@
     state: restarted
   when: kubeadm_join is succeeded and inventory_hostname != groups['masters'][0]
 
-- name: Wait for masters to be ready
+- name: wait for masters to be ready
   shell: "kubectl get nodes {{ inventory_hostname }} | awk 'END{print $2}'"
   register: node_ready
   until:      
@@ -143,7 +156,7 @@
   delay: 10
   when: kubeadm_join is succeeded and inventory_hostname != groups['masters'][0]
 
-- name: Poke kubelet
+- name: poke kubelet
   systemd:
     name: kubelet
     state: restarted
@@ -151,7 +164,7 @@
     enabled: yes
   register: kubelet_poke
 
-- name: Wait for masters to be ready
+- name: wait for masters to be ready
   shell: "kubectl get nodes {{ inventory_hostname }} | awk 'END{print $2}'"
   register: node_ready
   until:      

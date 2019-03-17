@@ -11,11 +11,6 @@
     name: UTC
   register: timezone
 
-# - name: python-apt dependency
-#   shell: apt-get install -y python-apt
-#   args:
-#     warn: no
-
 - name: apt-get update
   apt:
     update_cache: yes
@@ -34,6 +29,5 @@
     line: "{{ lb_vip }} {{ master_hostname }}"
 
 - name: Reboot Message
-  debug:
-    msg: "A reboot is required but the reboot module is a little wonky. Hopefully someone fixes this soon."
-  when: timezone or hostname is changed
+  reboot:
+  when: timezone is changed

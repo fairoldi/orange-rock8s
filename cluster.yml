@@ -1,15 +1,15 @@
-# - hosts: all
-#   roles:
-#     - common
+- hosts: all
+  roles:
+    - common
     
-# - hosts: nodes
-#   roles:
-#     - node
+- hosts: nodes
+  roles:
+    - node
 
 - hosts: masters
   roles:
     - master
 
-# - hosts: nodes:!master
-#   roles:
-#     - workers
+- hosts: workers
+  roles:
+    - worker

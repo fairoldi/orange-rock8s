@@ -32,7 +32,7 @@
 
 - name: Remove distro docker if present
   apt:
-    name: docker.io
+    name: ["docker.io", "containerd.io"]
     state: absent
     update_cache: yes
     autoclean: yes
@@ -63,5 +63,5 @@
   register: k8s_installed
 
 - name: hold k8s packages
-  command: apt-mark hold kubelet kubeadm kubectl
+  command: apt-mark hold kubelet kubeadm kubectl docker-ce
   when: k8s_installed.changed

@@ -122,15 +122,6 @@
   when: kubeadm_init is succeeded and inventory_hostname != groups['masters'][0]
   register: kubeadm_join
 
-- name: Wait for masters to be ready
-  shell: "kubectl get nodes {{ inventory_hostname }} | awk 'END{print $2}'"
-  register: node_ready
-  until:      
-    - "'Ready'  in node_ready.stdout"     
-  retries: 30
-  delay: 10
-  when: kubeadm_join is succeeded and inventory_hostname != groups['masters'][0]
-
 - name: add vip on remaining masters
   template:
     src: dummy.j2
@@ -141,7 +132,16 @@
   systemd:
     name: networking
     state: restarted
-  when: kubeadm_join is succedeed and inventory_hostname != groups['masters'][0]
+  when: kubeadm_join is succeeded and inventory_hostname != groups['masters'][0]
+
+- name: Wait for masters to be ready
+  shell: "kubectl get nodes {{ inventory_hostname }} | awk 'END{print $2}'"
+  register: node_ready
+  until:      
+    - "'Ready'  in node_ready.stdout"     
+  retries: 30
+  delay: 10
+  when: kubeadm_join is succeeded and inventory_hostname != groups['masters'][0]
 
 - name: Poke kubelet
   systemd:
@@ -151,3 +151,11 @@
     enabled: yes
   register: kubelet_poke
 
+- name: Wait for masters to be ready
+  shell: "kubectl get nodes {{ inventory_hostname }} | awk 'END{print $2}'"
+  register: node_ready
+  until:      
+    - "'Ready'  in node_ready.stdout"     
+  retries: 30
+  delay: 10
+  when: kubelet_poke is succeeded
